@@ -135,13 +135,30 @@ function applyFilter() {
 let statusSuffix = '';
 
 // --- データ取得 ---
+// バックエンド(/api/disasters)があればそれを使う（CORS回避・キャッシュ有り）。
+// 静的ホスティング(GitHub Pages 等)でバックエンドが無い場合は、
+// ブラウザから直接収集する DisasterCollector にフォールバックする。
+async function fetchData() {
+  try {
+    const res = await fetch('api/disasters', { headers: { Accept: 'application/json' } });
+    const ctype = res.headers.get('content-type') || '';
+    if (res.ok && ctype.includes('application/json')) {
+      return await res.json();
+    }
+  } catch (_) {
+    /* バックエンド無し -> クライアント収集へ */
+  }
+  if (window.DisasterCollector) {
+    return window.DisasterCollector.collect();
+  }
+  throw new Error('データ収集手段がありません');
+}
+
 async function loadData() {
   el('statusBar').textContent = '災害情報を収集中…';
   el('refreshBtn').disabled = true;
   try {
-    const res = await fetch('/api/disasters');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+    const data = await fetchData();
     allItems = data.items || [];
     const updated = data.updatedAt ? formatTime(data.updatedAt) : '';
     statusSuffix = updated ? `（最終更新: ${updated}）` : '';

@@ -11,7 +11,7 @@
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="app-header">
@@ -66,6 +66,9 @@
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin=""
   ></script>
-  <script src="/app.js"></script>
+  <!-- 静的ホスティング時にブラウザから直接収集するためのフォールバック -->
+  <script src="sample-data.js"></script>
+  <script src="collector-client.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
