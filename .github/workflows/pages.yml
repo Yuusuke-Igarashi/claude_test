@@ -31,6 +31,9 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
+        with:
+          # リポジトリの Pages 設定を自動で有効化（Settings での手動操作が不要）
+          enablement: true
 
       - name: Upload static site (public/)
         uses: actions/upload-pages-artifact@v3
