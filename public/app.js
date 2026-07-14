@@ -1,0 +1,170 @@
+// app.js — 地図の描画・ピン配置・ホバー詳細ウィンドウ制御
+
+const TYPE_LABELS = {
+  earthquake: '地震',
+  tsunami: '津波',
+  flood: '洪水',
+  cyclone: '台風・サイクロン',
+  volcano: '火山',
+  drought: '干ばつ',
+  wildfire: '山火事',
+  other: 'その他',
+};
+const SEVERITY_LABELS = { 1: '低', 2: '中', 3: '高', 4: '甚大' };
+
+let map;
+let markerLayer;
+let allItems = [];
+let hideTimer = null;
+
+const el = (id) => document.getElementById(id);
+
+function initMap() {
+  map = L.map('map', { worldCopyJump: true }).setView([36.2, 138.25], 4);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '&copy; OpenStreetMap contributors',
+  }).addTo(map);
+  markerLayer = L.layerGroup().addTo(map);
+}
+
+// 円形ピンを作る（警戒度で色・大きさが変わる）
+function makePin(item) {
+  const size = 12 + (item.severity || 1) * 4;
+  const icon = L.divIcon({
+    className: '',
+    html: `<div class="pin sev-${item.severity || 1}" style="width:${size}px;height:${size}px;"></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+  const marker = L.marker([item.lat, item.lon], { icon, title: item.title });
+
+  // ホバーで詳細ウィンドウを表示、外れると少し遅れて隠す
+  marker.on('mouseover', () => showDetail(item));
+  marker.on('mouseout', () => scheduleHide());
+  // クリックでも表示（モバイル・固定表示用）
+  marker.on('click', () => {
+    showDetail(item, true);
+    map.panTo([item.lat, item.lon]);
+  });
+  return marker;
+}
+
+function render(items) {
+  markerLayer.clearLayers();
+  for (const item of items) markerLayer.addLayer(makePin(item));
+}
+
+// --- 詳細「別ウィンドウ」の制御 ---
+function showDetail(item, sticky = false) {
+  clearTimeout(hideTimer);
+  const win = el('detailWindow');
+
+  const badge = el('detailBadge');
+  badge.textContent = SEVERITY_LABELS[item.severity] || '情報';
+  badge.className = `badge sev-${item.severity || 1}`;
+
+  el('detailTitle').textContent = item.title || '（無題）';
+  el('detailType').textContent = TYPE_LABELS[item.type] || item.type || '不明';
+  el('detailPlace').textContent = item.place || '不明';
+  el('detailMag').textContent =
+    item.magnitude != null ? `M${item.magnitude}` : SEVERITY_LABELS[item.severity] || '不明';
+  el('detailTime').textContent = item.time ? formatTime(item.time) : '不明';
+  el('detailCoord').textContent = `${item.lat.toFixed(3)}, ${item.lon.toFixed(3)}`;
+  el('detailSource').textContent = item.source || '不明';
+  el('detailDesc').textContent = item.description || '';
+
+  const link = el('detailLink');
+  if (item.url) {
+    link.href = item.url;
+    link.style.display = 'inline-block';
+  } else {
+    link.style.display = 'none';
+  }
+
+  win.classList.remove('hidden');
+  win.dataset.sticky = sticky ? '1' : '0';
+}
+
+function scheduleHide() {
+  const win = el('detailWindow');
+  if (win.dataset.sticky === '1') return; // クリックで固定中は消さない
+  hideTimer = setTimeout(() => win.classList.add('hidden'), 350);
+}
+
+// 詳細ウィンドウ上にマウスがある間は消さない
+function wireDetailWindow() {
+  const win = el('detailWindow');
+  win.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+  win.addEventListener('mouseleave', () => scheduleHide());
+  el('detailClose').addEventListener('click', () => {
+    win.dataset.sticky = '0';
+    win.classList.add('hidden');
+  });
+}
+
+function formatTime(iso) {
+  try {
+    return new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', hour12: false }) + ' (JST)';
+  } catch {
+    return iso;
+  }
+}
+
+// --- フィルタ ---
+function populateTypeFilter(items) {
+  const sel = el('typeFilter');
+  const types = [...new Set(items.map((i) => i.type))];
+  // 既存の "すべて" 以外を作り直す
+  sel.querySelectorAll('option:not([value="all"])').forEach((o) => o.remove());
+  for (const t of types) {
+    const o = document.createElement('option');
+    o.value = t;
+    o.textContent = TYPE_LABELS[t] || t;
+    sel.appendChild(o);
+  }
+}
+
+function applyFilter() {
+  const type = el('typeFilter').value;
+  const items = type === 'all' ? allItems : allItems.filter((i) => i.type === type);
+  render(items);
+  el('statusBar').textContent = `${items.length} 件の災害情報を表示中` + statusSuffix;
+}
+
+let statusSuffix = '';
+
+// --- データ取得 ---
+async function loadData() {
+  el('statusBar').textContent = '災害情報を収集中…';
+  el('refreshBtn').disabled = true;
+  try {
+    const res = await fetch('/api/disasters');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    allItems = data.items || [];
+    const updated = data.updatedAt ? formatTime(data.updatedAt) : '';
+    statusSuffix = updated ? `（最終更新: ${updated}）` : '';
+    if (data.usedFallback) {
+      statusSuffix += ' ／ ⚠ ライブソースに接続できないためサンプルデータを表示中';
+    } else if (data.errors && data.errors.length) {
+      statusSuffix += ` ／ 一部ソース取得失敗: ${data.errors.map((e) => e.source).join(', ')}`;
+    }
+    populateTypeFilter(allItems);
+    applyFilter();
+  } catch (err) {
+    el('statusBar').textContent = `取得に失敗しました: ${err.message}`;
+  } finally {
+    el('refreshBtn').disabled = false;
+  }
+}
+
+function init() {
+  initMap();
+  wireDetailWindow();
+  el('refreshBtn').addEventListener('click', loadData);
+  el('typeFilter').addEventListener('change', applyFilter);
+  loadData();
+}
+
+document.addEventListener('DOMContentLoaded', init);

@@ -1,0 +1,180 @@
+:root {
+  --bg: #0f172a;
+  --panel: #1e293b;
+  --panel-2: #273449;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #38bdf8;
+  --sev-1: #22c55e;
+  --sev-2: #eab308;
+  --sev-3: #f97316;
+  --sev-4: #ef4444;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 18px;
+  background: linear-gradient(90deg, #111827, #1e293b);
+  border-bottom: 1px solid #334155;
+  flex-wrap: wrap;
+}
+.title-group h1 { margin: 0; font-size: 1.25rem; }
+.subtitle { margin: 2px 0 0; font-size: 0.8rem; color: var(--muted); }
+
+.controls { display: flex; align-items: center; gap: 12px; }
+.filter { font-size: 0.85rem; color: var(--muted); }
+select, button {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid #475569;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+button:hover, select:hover { border-color: var(--accent); }
+
+.status-bar {
+  padding: 6px 18px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: #0b1220;
+  border-bottom: 1px solid #1f2937;
+}
+
+#map { flex: 1; width: 100%; z-index: 1; }
+
+/* --- ピン(円マーカー) --- */
+.pin {
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+  transition: transform 0.12s ease;
+}
+.pin:hover { transform: scale(1.35); cursor: pointer; }
+.sev-1 { background: var(--sev-1); }
+.sev-2 { background: var(--sev-2); }
+.sev-3 { background: var(--sev-3); }
+.sev-4 { background: var(--sev-4); }
+
+/* --- ホバー時に出現する詳細「別ウィンドウ」 --- */
+.detail-window {
+  position: fixed;
+  top: 96px;
+  right: 18px;
+  width: 340px;
+  max-width: calc(100vw - 36px);
+  background: var(--panel);
+  border: 1px solid #334155;
+  border-radius: 14px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  padding: 16px 18px;
+  z-index: 1000;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.detail-window.hidden {
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+}
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  color: #0b1220;
+  background: var(--accent);
+}
+.badge.sev-1 { background: var(--sev-1); }
+.badge.sev-2 { background: var(--sev-2); }
+.badge.sev-3 { background: var(--sev-3); color: #fff; }
+.badge.sev-4 { background: var(--sev-4); color: #fff; }
+
+.detail-close {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.3rem;
+  line-height: 1;
+  padding: 0 4px;
+}
+.detail-close:hover { color: #fff; }
+
+.detail-title {
+  margin: 0 0 12px;
+  font-size: 1.02rem;
+  line-height: 1.4;
+}
+.detail-body { margin: 0; }
+.detail-body .row {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px dashed #334155;
+  font-size: 0.85rem;
+}
+.detail-body dt { color: var(--muted); margin: 0; }
+.detail-body dd { margin: 0; word-break: break-word; }
+.detail-desc {
+  margin: 12px 0 10px;
+  font-size: 0.82rem;
+  color: #cbd5e1;
+  line-height: 1.6;
+}
+.detail-link {
+  display: inline-block;
+  font-size: 0.85rem;
+  color: var(--accent);
+  text-decoration: none;
+}
+.detail-link:hover { text-decoration: underline; }
+
+/* --- 凡例 --- */
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 18px;
+  background: #0b1220;
+  border-top: 1px solid #1f2937;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.legend-item { display: flex; align-items: center; gap: 5px; }
+.dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+@media (max-width: 640px) {
+  .detail-window { top: auto; bottom: 60px; right: 10px; left: 10px; width: auto; }
+  .subtitle { display: none; }
+}
