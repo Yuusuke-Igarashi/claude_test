@@ -6,7 +6,9 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    # 既定ブランチが main でない場合でもデプロイできるよう両方を対象にする。
+    # （GitHub Pages はデフォルトで既定ブランチからのデプロイのみ許可するため）
+    branches: [main, claude/disaster-info-map-app-ro22ri]
   workflow_dispatch:
 
 permissions:
