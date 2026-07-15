@@ -24,6 +24,7 @@ let markerLayer;
 let allItems = [];
 let hideTimer = null;
 let region = 'japan'; // 既定は日本版
+let currentItem = null; // 詳細表示中のイベント（レポート生成対象）
 
 const el = (id) => document.getElementById(id);
 
@@ -67,6 +68,7 @@ function render(items) {
 // --- 詳細「別ウィンドウ」の制御 ---
 function showDetail(item, sticky = false) {
   clearTimeout(hideTimer);
+  currentItem = item;
   const win = el('detailWindow');
 
   const badge = el('detailBadge');
@@ -109,6 +111,104 @@ function wireDetailWindow() {
   el('detailClose').addEventListener('click', () => {
     win.dataset.sticky = '0';
     win.classList.add('hidden');
+  });
+}
+
+// --- AIレポート生成 ---
+// HTMLエスケープ（モデル出力をそのまま挿入しないため）
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+  );
+}
+
+// 最小限のMarkdown→HTML（見出し/箇条書き/強調/リンク/段落）。先にエスケープ。
+function renderMarkdown(md) {
+  const inline = (t) =>
+    escapeHtml(t)
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  const lines = String(md).split('\n');
+  let html = '';
+  let inList = false;
+  const closeList = () => { if (inList) { html += '</ul>'; inList = false; } };
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    let m;
+    if ((m = line.match(/^###\s+(.*)/))) { closeList(); html += `<h3>${inline(m[1])}</h3>`; }
+    else if ((m = line.match(/^##\s+(.*)/))) { closeList(); html += `<h2>${inline(m[1])}</h2>`; }
+    else if ((m = line.match(/^#\s+(.*)/))) { closeList(); html += `<h2>${inline(m[1])}</h2>`; }
+    else if ((m = line.match(/^[-*]\s+(.*)/))) { if (!inList) { html += '<ul>'; inList = true; } html += `<li>${inline(m[1])}</li>`; }
+    else if (line.trim() === '') { closeList(); }
+    else { closeList(); html += `<p>${inline(line)}</p>`; }
+  }
+  closeList();
+  return html;
+}
+
+function openReportModal() {
+  el('reportModal').classList.remove('hidden');
+}
+function closeReportModal() {
+  el('reportModal').classList.add('hidden');
+}
+
+async function generateReport() {
+  if (!currentItem) return;
+  const item = currentItem;
+  el('reportSubtitle').textContent = `${TYPE_LABELS[item.type] || item.type} / ${item.place || ''} — ${item.title || ''}`;
+  el('reportBody').innerHTML =
+    '<div class="report-loading"><span class="spinner"></span>Web上の関連情報を収集し、レポートを生成中…（30秒ほどかかることがあります）</div>';
+  el('reportSources').innerHTML = '';
+  el('reportMeta').textContent = '';
+  openReportModal();
+
+  try {
+    const res = await fetch('api/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: item }),
+    });
+    const ctype = res.headers.get('content-type') || '';
+    if (!ctype.includes('application/json')) {
+      // 静的ホスティング(バックエンド無し)ではJSONが返らない
+      throw { _static: true };
+    }
+    const data = await res.json();
+    if (!res.ok) {
+      el('reportBody').innerHTML = `<div class="report-error">⚠ ${escapeHtml(data.error || 'レポートを生成できませんでした。')}</div>`;
+      return;
+    }
+    el('reportBody').innerHTML = renderMarkdown(data.markdown || '');
+    if (data.sources && data.sources.length) {
+      const items = data.sources
+        .map((s) => `<li><a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.title || s.url)}</a></li>`)
+        .join('');
+      el('reportSources').innerHTML = `<h3>参照した情報源</h3><ul>${items}</ul>`;
+    }
+    el('reportMeta').textContent =
+      `生成: ${data.model || 'AI'} ／ ${data.generatedAt ? formatTime(data.generatedAt) : ''}　※AI生成のため誤りを含む可能性があります。公式情報をご確認ください。`;
+  } catch (err) {
+    if (err && err._static) {
+      el('reportBody').innerHTML =
+        '<div class="report-error">⚠ AIレポート生成は<strong>サーバー版</strong>でのみ利用できます。<br>' +
+        'この機能はAPIキーを安全に扱うためバックエンドが必要です。<br><br>' +
+        '手元で以下を実行してからお試しください:<br>' +
+        '<code>npm install</code> → <code>ANTHROPIC_API_KEY=... node server.js</code></div>';
+    } else {
+      el('reportBody').innerHTML = `<div class="report-error">⚠ 通信エラー: ${escapeHtml(String((err && err.message) || err))}</div>`;
+    }
+  }
+}
+
+function wireReportModal() {
+  el('reportBtn').addEventListener('click', generateReport);
+  el('reportClose').addEventListener('click', closeReportModal);
+  el('reportModal').addEventListener('click', (e) => {
+    if (e.target === el('reportModal')) closeReportModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeReportModal();
   });
 }
 
@@ -204,6 +304,7 @@ function switchRegion(next) {
 function init() {
   initMap();
   wireDetailWindow();
+  wireReportModal();
   el('refreshBtn').addEventListener('click', loadData);
   el('typeFilter').addEventListener('change', applyFilter);
   document.querySelectorAll('.region-btn').forEach((b) =>

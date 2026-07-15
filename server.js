@@ -1,13 +1,15 @@
 // server.js
-// 依存パッケージ不要（Node 標準の http モジュールとグローバル fetch を使用）。
-// - 静的ファイル(public/) を配信
-// - GET /api/disasters で収集済みの災害情報(JSON)を返す（数分キャッシュ）
+// 静的ファイル(public/) を配信し、災害情報API・AIレポートAPIを提供する。
+// - GET  /api/disasters  収集済みの災害情報(JSON)（数分キャッシュ）
+// - POST /api/report     指定イベントのAIレポートを生成（要 ANTHROPIC_API_KEY）
+// 収集部分は依存ゼロ。レポート部分のみ @anthropic-ai/sdk を（遅延）利用する。
 
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { collectAll } from './src/collector.js';
+import { generateReport } from './src/report.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -71,8 +73,59 @@ async function serveStatic(req, res) {
   }
 }
 
+// リクエストボディ(JSON)を上限付きで読み取る
+function readJsonBody(req, limit = 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > limit) {
+        reject(Object.assign(new Error('body too large'), { code: 'TOO_LARGE' }));
+        req.destroy();
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      try {
+        resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {});
+      } catch {
+        reject(Object.assign(new Error('invalid JSON'), { code: 'BAD_JSON' }));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+// レポートAPIのエラーをHTTPステータス+メッセージに対応付ける
+const REPORT_ERRORS = {
+  NO_API_KEY: [503, 'サーバーに ANTHROPIC_API_KEY が設定されていません。サーバー版で環境変数を設定してください。'],
+  SDK_NOT_INSTALLED: [501, 'レポート機能には @anthropic-ai/sdk が必要です。サーバーで `npm install` を実行してください。'],
+  BAD_INPUT: [400, 'イベントデータが不正です。'],
+  BAD_JSON: [400, 'リクエストボディが不正です。'],
+  TOO_LARGE: [413, 'リクエストが大きすぎます。'],
+  REFUSED: [422, 'この内容のレポート生成は拒否されました。'],
+  EMPTY: [502, 'レポートを生成できませんでした。'],
+};
+
 const server = http.createServer(async (req, res) => {
   const { pathname, searchParams } = new URL(req.url, 'http://localhost');
+
+  if (pathname === '/api/report' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const event = body && body.event ? body.event : body;
+      const result = await generateReport(event);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ ...result, generatedAt: new Date().toISOString() }));
+    } catch (err) {
+      const [status, message] = REPORT_ERRORS[err.code] || [500, 'レポート生成中にエラーが発生しました。'];
+      res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: message, code: err.code || 'ERROR', detail: String(err.message || err) }));
+    }
+    return;
+  }
 
   if (pathname === '/api/disasters') {
     try {

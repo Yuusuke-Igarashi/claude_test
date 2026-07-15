@@ -54,8 +54,25 @@
       <div class="row"><dt>情報源</dt><dd id="detailSource"></dd></div>
     </dl>
     <p id="detailDesc" class="detail-desc"></p>
-    <a id="detailLink" class="detail-link" href="#" target="_blank" rel="noopener">詳細を見る ↗</a>
+    <div class="detail-actions">
+      <a id="detailLink" class="detail-link" href="#" target="_blank" rel="noopener">詳細を見る ↗</a>
+      <button id="reportBtn" class="report-btn" title="Web上の関連情報を収集しAIでレポートを生成">📄 AIレポート生成</button>
+    </div>
   </aside>
+
+  <!-- AIレポート表示用モーダル -->
+  <div id="reportModal" class="report-modal hidden" role="dialog" aria-modal="true" aria-labelledby="reportModalTitle">
+    <div class="report-dialog">
+      <div class="report-modal-header">
+        <h2 id="reportModalTitle">📄 AI災害レポート</h2>
+        <button id="reportClose" class="detail-close" title="閉じる" aria-label="閉じる">×</button>
+      </div>
+      <p id="reportSubtitle" class="report-subtitle"></p>
+      <div id="reportBody" class="report-content"></div>
+      <div id="reportSources" class="report-sources"></div>
+      <p id="reportMeta" class="report-meta"></p>
+    </div>
+  </div>
 
   <footer class="legend">
     <span class="legend-title">警戒度:</span>
