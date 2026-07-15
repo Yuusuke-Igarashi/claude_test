@@ -40,7 +40,30 @@ body {
 .title-group h1 { margin: 0; font-size: 1.25rem; }
 .subtitle { margin: 2px 0 0; font-size: 0.8rem; color: var(--muted); }
 
-.controls { display: flex; align-items: center; gap: 12px; }
+.controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* --- 世界版/日本版 切り替え --- */
+.region-toggle {
+  display: inline-flex;
+  background: var(--panel-2);
+  border: 1px solid #475569;
+  border-radius: 999px;
+  padding: 2px;
+}
+.region-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.region-btn.is-active {
+  background: var(--accent);
+  color: #0b1220;
+}
+.region-btn:hover:not(.is-active) { color: var(--text); }
 .filter { font-size: 0.85rem; color: var(--muted); }
 select, button {
   background: var(--panel-2);

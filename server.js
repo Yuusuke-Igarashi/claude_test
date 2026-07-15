@@ -14,16 +14,23 @@ const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const CACHE_TTL_MS = 3 * 60 * 1000; // 3分
 
-let cache = { at: 0, data: null, inflight: null };
+// region ("world" | "japan") ごとに別々にキャッシュする
+const caches = {
+  world: { at: 0, data: null, inflight: null },
+  japan: { at: 0, data: null, inflight: null },
+};
 
-async function getDisasters() {
+async function getDisasters(region) {
+  const cache = caches[region] || caches.japan;
   const fresh = Date.now() - cache.at < CACHE_TTL_MS && cache.data;
   if (fresh) return cache.data;
   if (cache.inflight) return cache.inflight; // 同時リクエストをまとめる
   cache.inflight = (async () => {
     try {
-      const data = await collectAll({ useNetwork: true });
-      cache = { at: Date.now(), data, inflight: null };
+      const data = await collectAll({ region });
+      cache.at = Date.now();
+      cache.data = data;
+      cache.inflight = null;
       return data;
     } catch (err) {
       cache.inflight = null;
@@ -65,11 +72,12 @@ async function serveStatic(req, res) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const { pathname } = new URL(req.url, 'http://localhost');
+  const { pathname, searchParams } = new URL(req.url, 'http://localhost');
 
   if (pathname === '/api/disasters') {
     try {
-      const data = await getDisasters();
+      const region = searchParams.get('region') === 'world' ? 'world' : 'japan';
+      const data = await getDisasters(region);
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
         'Cache-Control': 'public, max-age=60',
@@ -84,7 +92,7 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === '/api/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, cachedAt: cache.at || null }));
+    res.end(JSON.stringify({ ok: true, cachedAt: { world: caches.world.at || null, japan: caches.japan.at || null } }));
     return;
   }
 

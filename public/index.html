@@ -20,6 +20,10 @@
       <p class="subtitle">Web上の災害情報を収集し、地図上にピンで表示します</p>
     </div>
     <div class="controls">
+      <div class="region-toggle" role="group" aria-label="表示範囲の切り替え">
+        <button id="regionJapan" class="region-btn is-active" data-region="japan">🇯🇵 日本版</button>
+        <button id="regionWorld" class="region-btn" data-region="world">🌏 世界版</button>
+      </div>
       <label class="filter">
         種別:
         <select id="typeFilter">

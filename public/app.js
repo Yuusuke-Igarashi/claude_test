@@ -8,19 +8,28 @@ const TYPE_LABELS = {
   volcano: '火山',
   drought: '干ばつ',
   wildfire: '山火事',
+  warning: '気象警報',
   other: 'その他',
 };
 const SEVERITY_LABELS = { 1: '低', 2: '中', 3: '高', 4: '甚大' };
+
+// 表示範囲ごとの地図初期ビュー
+const REGION_VIEW = {
+  japan: { center: [37.5, 137.8], zoom: 5 },
+  world: { center: [20, 150], zoom: 2 },
+};
 
 let map;
 let markerLayer;
 let allItems = [];
 let hideTimer = null;
+let region = 'japan'; // 既定は日本版
 
 const el = (id) => document.getElementById(id);
 
 function initMap() {
-  map = L.map('map', { worldCopyJump: true }).setView([36.2, 138.25], 4);
+  const v = REGION_VIEW[region];
+  map = L.map('map', { worldCopyJump: true }).setView(v.center, v.zoom);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: '&copy; OpenStreetMap contributors',
@@ -129,7 +138,8 @@ function applyFilter() {
   const type = el('typeFilter').value;
   const items = type === 'all' ? allItems : allItems.filter((i) => i.type === type);
   render(items);
-  el('statusBar').textContent = `${items.length} 件の災害情報を表示中` + statusSuffix;
+  const regionLabel = region === 'japan' ? '日本版' : '世界版';
+  el('statusBar').textContent = `【${regionLabel}】${items.length} 件の災害情報を表示中` + statusSuffix;
 }
 
 let statusSuffix = '';
@@ -140,7 +150,7 @@ let statusSuffix = '';
 // ブラウザから直接収集する DisasterCollector にフォールバックする。
 async function fetchData() {
   try {
-    const res = await fetch('api/disasters', { headers: { Accept: 'application/json' } });
+    const res = await fetch('api/disasters?region=' + region, { headers: { Accept: 'application/json' } });
     const ctype = res.headers.get('content-type') || '';
     if (res.ok && ctype.includes('application/json')) {
       return await res.json();
@@ -149,7 +159,7 @@ async function fetchData() {
     /* バックエンド無し -> クライアント収集へ */
   }
   if (window.DisasterCollector) {
-    return window.DisasterCollector.collect();
+    return window.DisasterCollector.collect(region);
   }
   throw new Error('データ収集手段がありません');
 }
@@ -176,11 +186,29 @@ async function loadData() {
   }
 }
 
+function switchRegion(next) {
+  if (next === region) return;
+  region = next;
+  // ボタンの見た目を更新
+  document.querySelectorAll('.region-btn').forEach((b) =>
+    b.classList.toggle('is-active', b.dataset.region === region)
+  );
+  // 地図をその範囲へ移動
+  const v = REGION_VIEW[region];
+  map.setView(v.center, v.zoom);
+  // 種別フィルタを全件に戻して再取得
+  el('typeFilter').value = 'all';
+  loadData();
+}
+
 function init() {
   initMap();
   wireDetailWindow();
   el('refreshBtn').addEventListener('click', loadData);
   el('typeFilter').addEventListener('change', applyFilter);
+  document.querySelectorAll('.region-btn').forEach((b) =>
+    b.addEventListener('click', () => switchRegion(b.dataset.region))
+  );
   loadData();
 }
 
