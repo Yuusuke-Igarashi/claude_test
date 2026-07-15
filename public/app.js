@@ -164,14 +164,16 @@ async function generateReport() {
   openReportModal();
 
   try {
-    const res = await fetch('api/report', {
+    // Worker URL が設定されていればそれを、無ければ同一オリジン(Nodeサーバー版)を使う
+    const endpoint = (window.APP_CONFIG && window.APP_CONFIG.reportApiUrl) || 'api/report';
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ event: item }),
     });
     const ctype = res.headers.get('content-type') || '';
     if (!ctype.includes('application/json')) {
-      // 静的ホスティング(バックエンド無し)ではJSONが返らない
+      // JSONが返らない = バックエンド未設定（静的ホスティングで Worker URL 未設定）
       throw { _static: true };
     }
     const data = await res.json();
@@ -191,10 +193,11 @@ async function generateReport() {
   } catch (err) {
     if (err && err._static) {
       el('reportBody').innerHTML =
-        '<div class="report-error">⚠ AIレポート生成は<strong>サーバー版</strong>でのみ利用できます。<br>' +
-        'この機能はAPIキーを安全に扱うためバックエンドが必要です。<br><br>' +
-        '手元で以下を実行してからお試しください:<br>' +
-        '<code>npm install</code> → <code>ANTHROPIC_API_KEY=... node server.js</code></div>';
+        '<div class="report-error">⚠ AIレポート生成にはバックエンドが必要です（APIキーを安全に扱うため）。<br><br>' +
+        '<strong>手元で使う場合</strong>：<code>npm install</code> → <code>ANTHROPIC_API_KEY=... node server.js</code><br><br>' +
+        '<strong>公開サイト(GitHub Pages 等)で使う場合</strong>：Cloudflare Worker をデプロイし、' +
+        'そのURLを <code>public/config.js</code> の <code>reportApiUrl</code> に設定してください' +
+        '（手順は <code>worker/README.md</code>）。</div>';
     } else {
       el('reportBody').innerHTML = `<div class="report-error">⚠ 通信エラー: ${escapeHtml(String((err && err.message) || err))}</div>`;
     }

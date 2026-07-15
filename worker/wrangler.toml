@@ -1,0 +1,16 @@
+# Cloudflare Worker 設定 — AIレポート生成バックエンド
+# デプロイ手順は worker/README.md を参照。
+
+name = "disaster-report"
+main = "report-worker.js"
+compatibility_date = "2024-11-01"
+
+# 使用モデルや CORS 許可オリジンは変数で上書きできます。
+# ALLOWED_ORIGIN は自分の公開URL(例: https://<ユーザー名>.github.io)に設定すると
+# 第三者からの無断利用(APIクレジットの消費)を防げます。
+[vars]
+ANTHROPIC_MODEL = "claude-opus-4-8"
+# ALLOWED_ORIGIN = "https://yuusuke-igarashi.github.io"
+
+# ANTHROPIC_API_KEY はシークレットとして登録します（このファイルには書かない）:
+#   npx wrangler secret put ANTHROPIC_API_KEY
